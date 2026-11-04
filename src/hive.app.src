@@ -1,0 +1,14 @@
+{application, hive, [
+    {description, "An OTP application"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {mod, {hive_app, []}},
+    {applications, [
+        kernel,
+        stdlib
+    ]},
+    {env, [{default_port, 6969}]},
+    {modules, []},
+    {licenses, ["Apache-2.0"]},
+    {links, []}
+ ]}.
