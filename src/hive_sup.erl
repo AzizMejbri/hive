@@ -36,12 +36,12 @@ init([]) ->
                     start => {chat_storage_sup, start_link, []},
                     restart => permanent,
                     shutdown => 5000,
-                    type => supervisor}],
+                    type => supervisor},
                 #{  id => chat_realtime_sup,
                     start => {chat_realtime_sup, start_link, []},
                     restart => permanent,
                     shutdown => 5000,
-                    type => supervisor},
+                    type => supervisor}],
   {ok, {SupFlags, ChildSpecs}}.
 
 %% internal functions

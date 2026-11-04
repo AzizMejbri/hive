@@ -1,1 +1,8 @@
-[].
+{"1.2.0",
+[{<<"jargon">>,{pkg,<<"jargon">>,<<"1.0.0">>},0}]}.
+[
+{pkg_hash,[
+ {<<"jargon">>, <<"E167353B484427CD3F28206D3A5BFA733BC62BBA736BD5BD25AC4AD625DAD38A">>}]},
+{pkg_hash_ext,[
+ {<<"jargon">>, <<"60FBFACC920EAEBC96C76DA3D8ED814FABDDC2103CC0D04FE314A3C15F3174DF">>}]}
+].

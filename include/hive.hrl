@@ -11,10 +11,12 @@
 -record(user, {
   id             :: user_id(),
   name           :: binary(),
-  email          :: binary() | undefined,
+  email          :: binary(),
+  password       :: binary() | hidden,
   gender         :: gender(),
   created_at     :: timestamp(),
-  last_connected :: timestamp() | undefined
+  last_connected :: timestamp() | undefined,
+  privilege      :: admin | user
   %% no status, no channels, no friends — see separate tables
 }).
 
@@ -37,7 +39,8 @@
 -record(channel, {
   id         :: channel_id(),
   name       :: binary(),
-  created_at :: timestamp()
+  created_at :: timestamp(),
+  admin      :: user_id()
 }).
 
 -type channel() :: #channel{}.

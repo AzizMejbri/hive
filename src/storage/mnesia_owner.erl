@@ -1,7 +1,7 @@
 -module(mnesia_owner).
 
 -behaviour(gen_server).
--include("../include/hive.hrl").
+-include("hive.hrl").
 
 -export([start_link/0, init/1]).
 -export([handle_info/2, handle_cast/2, handle_call/3]).
@@ -37,7 +37,7 @@ start_mnesia() ->
 
 
 -spec create_tables() -> ok | {error, Reason} when
-    Reason :: mnist:t_result(ok).
+    Reason :: mnesia:t_result(ok).
 create_tables() ->
     Tables = [
         {user, [
@@ -65,12 +65,15 @@ create_tables() ->
             {index, [sender, target, sent_at]} 
         ]}
     ],
-    lists:foreach(fun create_table_if_not_exists/1, Tables).
+    lists:foldl(fun create_table_if_not_exists/2, ok, Tables).
 
 
--spec create_table_if_not_exists(TableSpec) -> ok | {error, Reason} when
-    TableSpec :: {atom(), mnist:table()}, Reason :: mnist:t_result(ok).
-create_table_if_not_exists({TableName, TableDef}) ->
+-spec create_table_if_not_exists(TableSpec, Acc) -> ok | {error, Reason} when
+    TableSpec :: {atom(), mnesia:table()}, Acc :: ok | {error, mnesia:t_result(ok)},
+    Reason :: mnesia:t_result(ok).
+create_table_if_not_exists(_, {error, _} = Err) ->
+  Err; 
+create_table_if_not_exists({TableName, TableDef}, ok) ->
   case lists:member(TableName, mnesia:system_info(tables)) of
     true ->
       logger:log(info, "Table ~p already exists", [TableName]),
@@ -87,6 +90,20 @@ create_table_if_not_exists({TableName, TableDef}) ->
       end
   end.
 
+-spec verify_disc_schema() -> ok | {error, ram_schema}.
+verify_disc_schema() ->
+    case mnesia:table_info(schema, disc_copies) of
+        [] ->
+            logger:log(error,
+                "Schema at ~p is RAM-resident. Either `mnesia` is being "
+                "started before mnesia_owner (check hive_app:start/2), or "
+                "a stale Mnesia.* directory holds a RAM schema. Delete it "
+                "and restart.",
+                [mnesia:system_info(directory)]),
+            {error, ram_schema};
+        _ -> ok
+    end.
+
 start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
@@ -95,16 +112,21 @@ init([]) ->
     ok ->
       case start_mnesia() of
         ok ->
-          case create_tables() of 
-            ok -> 
-              case mnesia:subscribe(system) of   % subscribing for all mnesia's event for proper logging and monitoring
-                {ok, Node} ->
-                  logger:log(info, "Table creation sucessed. Node ~p subscribed successfully to mnesia's events!", Node);
+          case verify_disc_schema() of
+            ok ->
+              case create_tables() of 
+                ok -> 
+                  case mnesia:subscribe(system) of   % subscribing for all mnesia's event for proper logging and monitoring
+                    {ok, Node} ->
+                      logger:log(info, "Table creation suceeded. Node ~p subscribed successfully to mnesia's events!", [Node]);
+                    {error, Reason} ->
+                      logger:log(warning, "Table creation succeeded. But Failed to subscribe to mnesia's events ... Reason: ~p", [Reason])
+                  end,
+                  {ok, #{}};
                 {error, Reason} ->
-                  logger:log(warning, "Table creation succeeded. But Failed to subscribe to mnesia's events ... Reason: ", Reason)
+                  {stop, {mnesia_table_creation_failure, Reason}}
               end;
-            {error, Reason} ->
-              {stop, {mnesia_table_creation_failure, Reason}}
+              {error, R} -> {stop, {disk_schema_check_failed, R}}
           end;
         {error, Reason} ->
           {stop, {mnesia_start_failure, Reason}}
@@ -197,7 +219,7 @@ handle_call({table_info, Table, Items}, _From, State) ->
 handle_call(stop, _From, State) ->
     {stop, normal, ok, State};
 handle_call(Req, _From, State) ->
-    {reply, {error, {unkown_request, Req}}, State}.
+    {reply, {error, {unknown_request, Req}}, State}.
 
 handle_cast(sync, State) ->
     mnesia:sync_log(),
@@ -216,7 +238,7 @@ handle_mnesia_event({mnesia_up, Node}) ->
 handle_mnesia_event({mnesia_down, Node}) ->
     logger:log(warning, "Mnesia node down: ~p", [Node]);
 handle_mnesia_event({mnesia_overload, Info}) ->
-    logger:log(warnin, "Mnesia overloaded: ~p", [Info]);
+    logger:log(warning, "Mnesia overloaded: ~p", [Info]);
 handle_mnesia_event({inconsistent_database, Ctx, Node}) ->
     logger:log(error, "Inconsistent DB on ~p: ~p", [Node, Ctx]);
 handle_mnesia_event(Other) ->
